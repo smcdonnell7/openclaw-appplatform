@@ -1,0 +1,45 @@
+name: clawdbot
+region: tor  # Toronto (default)
+# Available regions: nyc, ams, sfo, sgp, lon, fra, blr, syd, tor
+
+services:
+  - name: clawdbot
+    image:
+      registry_type: GHCR
+      registry: bikramkgupta
+      repository: clawdbot-appplatform
+      tag: 3b2ff4a
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-2gb  # 1 shared vCPU, 2GB RAM, ~$25/mo
+    http_port: 18789
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 60
+      period_seconds: 10
+    envs:
+      - key: PORT
+        value: "18789"
+      - key: SETUP_PASSWORD
+        value: "${SETUP_PASSWORD}"
+      - key: CLAWDBOT_GATEWAY_TOKEN
+        value: "${CLAWDBOT_GATEWAY_TOKEN}"
+      - key: CLAWDBOT_STATE_DIR
+        value: /data/.clawdbot
+      - key: CLAWDBOT_WORKSPACE_DIR
+        value: /data/workspace
+      # Gradient AI (DigitalOcean AI Platform)
+      - key: GRADIENT_API_KEY
+        value: "${GRADIENT_API_KEY}"
+      # Litestream + Spaces persistence
+      - key: LITESTREAM_ACCESS_KEY_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: LITESTREAM_SECRET_ACCESS_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: SPACES_ENDPOINT
+        scope: RUN_TIME
+        type: SECRET
+      - key: SPACES_BUCKET
+        scope: RUN_TIME
+        type: SECRET
