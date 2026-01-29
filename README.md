@@ -211,10 +211,11 @@ Final backup is triggered on SIGTERM for graceful restarts.
 
 | Instance | RAM | Use Case | Cost |
 |----------|-----|----------|------|
-| `apps-s-1vcpu-2gb` | 2 GB | Minimum viable | ~$25/mo |
-| `apps-s-2vcpu-4gb` | 4 GB | Recommended (default) | ~$48/mo |
+| `apps-s-1vcpu-1gb` | 1 GB | Default (lightweight usage) | ~$12/mo |
+| `apps-s-1vcpu-2gb` | 2 GB | Multiple channels | ~$25/mo |
+| `apps-s-2vcpu-4gb` | 4 GB | Heavy usage + browser automation | ~$48/mo |
 
-> **Note**: Resource needs scale with channels, agents, and features. The default 4GB is recommended for reliable operation.
+> **Note**: Start with 1GB and scale up if you see memory issues.
 
 Add ~$5/mo for Spaces persistence.
 

@@ -21,7 +21,7 @@ workers:
       deploy_on_push: true
       repo: digitalocean-labs/clawdbot-appplatform
     instance_count: 1
-    instance_size_slug: apps-s-2vcpu-4gb  # 2 vCPU, 4GB RAM
+    instance_size_slug: apps-s-1vcpu-1gb  # 1 vCPU, 1GB RAM (~$12/mo)
     envs:
       # === Required ===
       - key: SETUP_PASSWORD
@@ -55,6 +55,11 @@ workers:
       - key: CLAWDBOT_WORKSPACE_DIR
         scope: RUN_AND_BUILD_TIME
         value: /data/workspace
+
+      # === Optional: AI Provider ===
+      - key: GRADIENT_API_KEY
+        scope: RUN_TIME
+        type: SECRET
 
       # === Optional: Persistence via DO Spaces + Litestream ===
       # Uncomment to enable SQLite backup and state persistence
