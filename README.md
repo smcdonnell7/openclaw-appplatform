@@ -2,7 +2,7 @@
 
 Deploy [Moltbot](https://github.com/moltbot/moltbot) - a multi-channel AI messaging gateway - on DigitalOcean App Platform in minutes.
 
-[![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/digitalocean-labs/moltbot-appplatform/tree/main)
+[![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/digitalocean-labs/clawdbot-appplatform/tree/main)
 
 ## Quick Start: Choose Your Stage
 
