@@ -171,6 +171,14 @@ permissions:
     user: root
     group: root
     mode: "0644"
+  - path: /etc/ssh/ssh_config.d
+    user: root
+    group: root
+    mode: "0755"
+  - path: /etc/ssh/ssh_config.d/*
+    user: root
+    group: root
+    mode: "0644"
   - path: /etc/ssh/authorized_keys
     user: root
     group: root

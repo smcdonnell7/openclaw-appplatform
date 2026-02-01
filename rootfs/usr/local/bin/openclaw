@@ -25,6 +25,7 @@ fi
 
 # Use local SSH if enabled by default, or if sudo isn't available
 if [ "${PUBLIC_SSH_LOCALACCESS:-true}" = "true" ] || ! command -v sudo &>/dev/null; then
+  export MOTD_SKIP=1
   exec ssh -q -o BatchMode=yes -o StrictHostKeyChecking=no openclaw@localhost "openclaw$(printf ' %q' "$@")"
 fi
 

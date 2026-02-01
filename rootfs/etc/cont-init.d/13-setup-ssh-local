@@ -14,7 +14,7 @@
 # When disabled (cleanup):
 #   - Removes /etc/ssh/authorized_keys
 #   - Removes local-access.conf
-#   - Restores 00-openclaw.conf to default
+#   - Restores 00-localssh.conf to default
 
 source /etc/s6-overlay/lib/env-utils.sh
 source_env_prefix SSH_
@@ -22,10 +22,13 @@ source_env_prefix SSH_
 GROUP="localaccess"
 
 cleanup() {
+  persist_env_var PUBLIC PUBLIC_SSH_LOCALACCESS=false
+
   rm -f /etc/ssh/authorized_keys
   rm -f /etc/ssh/sshd_config.d/local-access.conf
+  rm -f /etc/ssh/ssh_config.d/00-localssh.conf
   # Restore default sshd config (without system-wide authorized_keys)
-  cat > /etc/ssh/sshd_config.d/00-openclaw.conf << 'EOF'
+  cat > /etc/ssh/sshd_config.d/00-localssh.conf << 'EOF'
 # OpenClaw SSH configuration
 
 # Disable root login via SSH
@@ -43,6 +46,9 @@ AuthorizedKeysFile .ssh/authorized_keys
 
 # Use PAM for authentication
 UsePAM yes
+
+# Accept MOTD_SKIP to prevent MOTD recursion from openclaw wrapper
+AcceptEnv MOTD_SKIP
 EOF
   echo "[ssh-local] Cleanup complete"
 }
@@ -62,7 +68,7 @@ if [ "${SSH_ALLOW_LOCAL:-true}" != "true" ]; then
 fi
 
 echo "[ssh-local] Setting up local SSH access..."
-
+persist_env_var PUBLIC PUBLIC_SSH_LOCALACCESS=true
 # Create localaccess group if it doesn't exist
 if ! getent group "$GROUP" >/dev/null; then
   groupadd "$GROUP"
@@ -88,7 +94,7 @@ mkdir -p /home/ubuntu/.ssh
 mkdir -p /etc/ssh/sshd_config.d
 
 # Update base config to include system-wide authorized_keys
-cat > /etc/ssh/sshd_config.d/00-openclaw.conf << 'EOF'
+cat > /etc/ssh/sshd_config.d/00-localssh.conf << 'EOF'
 # OpenClaw SSH configuration
 
 # Disable root login via SSH (overridden for localhost below)
@@ -106,6 +112,9 @@ AuthorizedKeysFile .ssh/authorized_keys /etc/ssh/authorized_keys
 
 # Use PAM for authentication
 UsePAM yes
+
+# Accept MOTD_SKIP to prevent MOTD recursion from openclaw wrapper
+AcceptEnv MOTD_SKIP
 EOF
 
 # Allow root login from localhost only
@@ -113,6 +122,14 @@ cat > /etc/ssh/sshd_config.d/local-access.conf << 'EOF'
 # Allow root login only from localhost (SSH_ALLOW_LOCAL feature)
 Match Address 127.0.0.1,::1
     PermitRootLogin yes
+EOF
+
+# Configure ssh client to send MOTD_SKIP for localhost connections
+mkdir -p /etc/ssh/ssh_config.d
+cat > /etc/ssh/ssh_config.d/00-localssh.conf << 'EOF'
+# Send MOTD_SKIP to prevent MOTD recursion when using local SSH
+Host localhost
+  SendEnv MOTD_SKIP
 EOF
 
 echo "[ssh-local] Configured sshd for local access"
