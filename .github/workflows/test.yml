@@ -10,50 +10,178 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      configs: ${{ steps.list-configs.outputs.configs }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: List test configurations
+        id: list-configs
+        run: |
+          configs=$(ls -1 example_configs/*.env | xargs -n1 basename | sed 's/\.env$//' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "configs=$configs" >> $GITHUB_OUTPUT
+          echo "Found configurations: $configs"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: openclaw-test:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save Docker image
+        run: docker save openclaw-test:latest -o /tmp/openclaw-test.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp/openclaw-test.tar
+          retention-days: 1
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.build.outputs.configs) }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
 
-      - name: Create minimal .env for testing
+      - name: Load Docker image
+        run: docker load -i /tmp/openclaw-test.tar
+
+      - name: Install s3cmd
+        if: matrix.config == 'persistence-enabled'
+        run: sudo apt-get update && sudo apt-get install -y s3cmd
+
+      - name: Create Spaces bucket for persistence test
+        if: matrix.config == 'persistence-enabled'
+        id: spaces-bucket
+        env:
+          DO_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
+          DO_SPACES_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
         run: |
-          cat > .env << 'EOF'
-          TAILSCALE_ENABLE=false
-          ENABLE_NGROK=false
-          ENABLE_SPACES=false
-          ENABLE_SSH=false
-          STABLE_HOSTNAME=openclaw-test
-          # Keep container running even if services fail (0=continue, 1=SIGTERM, 2=SIGKILL)
-          S6_BEHAVIOUR_IF_STAGE2_FAILS=0
-          EOF
+          if [ -z "$DO_SPACES_ACCESS_KEY_ID" ] || [ -z "$DO_SPACES_SECRET_ACCESS_KEY" ]; then
+            echo "SKIP_PERSISTENCE=true" >> $GITHUB_OUTPUT
+            echo "BUCKET_NAME=" >> $GITHUB_OUTPUT
+            echo "Skipping: DO_SPACES credentials not configured"
+            exit 0
+          fi
+          BUCKET_NAME="openclaw-test-$(date +%s)-$$"
+          SPACES_REGION="sfo3"
+          SPACES_ENDPOINT="${SPACES_REGION}.digitaloceanspaces.com"
 
-      - name: Build and start container
-        run: make rebuild
+          s3cmd --access_key="$DO_SPACES_ACCESS_KEY_ID" \
+                --secret_key="$DO_SPACES_SECRET_ACCESS_KEY" \
+                --host="$SPACES_ENDPOINT" \
+                --host-bucket="%(bucket)s.$SPACES_ENDPOINT" \
+                mb "s3://$BUCKET_NAME"
 
-      - name: Wait for services
-        run: sleep 10
+          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "SPACES_ENDPOINT=$SPACES_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "Created bucket: $BUCKET_NAME"
+
+      - name: Copy test configuration
+        env:
+          RESTIC_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
+          RESTIC_SPACES_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
+          RESTIC_SPACES_ENDPOINT: ${{ steps.spaces-bucket.outputs.SPACES_ENDPOINT }}
+          RESTIC_SPACES_BUCKET: ${{ steps.spaces-bucket.outputs.BUCKET_NAME }}
+          RESTIC_PASSWORD: test-password-${{ github.run_id }}
+        run: |
+          echo "Testing configuration: ${{ matrix.config }}"
+          bash -c 'source tests/lib.sh && switch_config ${{ matrix.config }}'
+          echo "--- Configuration contents ---"
+          cat .env
+
+      - name: Start container
+        run: |
+          docker compose up -d
+          sleep 10
 
       - name: Dump container status
         if: always()
-        run: docker ps -a --filter name=openclaw-test
+        run: docker ps -a --filter name=${{ matrix.config }}
 
       - name: Dump container logs
         if: always()
-        run: docker logs openclaw-test 2>&1 || true
+        run: docker logs ${{ matrix.config }} 2>&1 || true
 
       - name: Dump process list
         if: always()
-        run: docker exec openclaw-test ps aux || echo "Container not running"
+        run: docker exec ${{ matrix.config }} ps aux || echo "Container not running"
 
       - name: Verify container is running
         run: |
-          if ! docker ps --filter name=openclaw-test --filter status=running | grep -q openclaw-test; then
+          if ! docker ps --filter name=${{ matrix.config }} --filter status=running | grep -q ${{ matrix.config }}; then
             echo "error: Container is not running"
             exit 1
           fi
+
+      - name: Run test script
+        env:
+          DO_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
+          DO_SPACES_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -x "tests/${{ matrix.config }}/test.sh" ]; then
+            echo "Running tests/${{ matrix.config }}/test.sh"
+            ./tests/${{ matrix.config }}/test.sh ${{ matrix.config }}
+          else
+            echo "No test script found for ${{ matrix.config }}, skipping"
+          fi
+
+      - name: Dump final container state
+        if: always()
+        run: |
+          echo "=== Container status ==="
+          docker ps -a --filter name=${{ matrix.config }}
+          echo ""
+          echo "=== Process list ==="
+          docker exec ${{ matrix.config }} ps aux 2>/dev/null || echo "Container not running"
+          echo ""
+          echo "=== Service status ==="
+          docker exec ${{ matrix.config }} ls -la /run/service/ 2>/dev/null || echo "No services"
+          for svc in $(docker exec ${{ matrix.config }} ls /run/service/ 2>/dev/null); do
+            echo -n "$svc: "
+            docker exec ${{ matrix.config }} /command/s6-svstat "/run/service/$svc" 2>/dev/null || echo "unknown"
+          done
+          echo ""
+          echo "=== Container environment ==="
+          docker exec ${{ matrix.config }} bash -c 'for f in /run/s6/container_environment/*; do [ -f "$f" ] && echo "$(basename $f)=$(cat $f)"; done' 2>/dev/null || echo "No environment"
+          echo ""
+          echo "=== Final container logs ==="
+          docker logs ${{ matrix.config }} 2>&1 || true
+
+      - name: Cleanup Spaces bucket
+        if: always() && matrix.config == 'persistence-enabled' && steps.spaces-bucket.outputs.BUCKET_NAME != ''
+        env:
+          DO_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
+          DO_SPACES_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
+          BUCKET_NAME: ${{ steps.spaces-bucket.outputs.BUCKET_NAME }}
+          SPACES_ENDPOINT: ${{ steps.spaces-bucket.outputs.SPACES_ENDPOINT }}
+        run: |
+          echo "Cleaning up Spaces bucket: $BUCKET_NAME"
+          s3cmd --access_key="$DO_SPACES_ACCESS_KEY_ID" \
+                --secret_key="$DO_SPACES_SECRET_ACCESS_KEY" \
+                --host="$SPACES_ENDPOINT" \
+                --host-bucket="%(bucket)s.$SPACES_ENDPOINT" \
+                rb --recursive "s3://$BUCKET_NAME" || true
 
       - name: Cleanup
         if: always()
