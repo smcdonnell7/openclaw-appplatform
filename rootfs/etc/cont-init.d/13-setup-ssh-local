@@ -1,0 +1,120 @@
+#!/command/with-contenv bash
+# Setup local SSH access using the 'localaccess' group
+# Members of this group can SSH to any user on localhost
+#
+# Requires SSH_ENABLE=true. SSH_ALLOW_LOCAL=true by default.
+#
+# When enabled:
+#   - Creates 'localaccess' group with ubuntu and root as members
+#   - Generates fresh SSH keypairs for all group members (rotated on boot, daily via cron)
+#   - Writes all public keys to /etc/ssh/authorized_keys (system-wide)
+#   - Configures sshd to accept system-wide authorized_keys for all users
+#   - Allows root login from localhost only (Match block)
+#
+# When disabled (cleanup):
+#   - Removes /etc/ssh/authorized_keys
+#   - Removes local-access.conf
+#   - Restores 00-openclaw.conf to default
+
+source /etc/s6-overlay/lib/env-utils.sh
+source_env_prefix SSH_
+
+GROUP="localaccess"
+
+cleanup() {
+  rm -f /etc/ssh/authorized_keys
+  rm -f /etc/ssh/sshd_config.d/local-access.conf
+  # Restore default sshd config (without system-wide authorized_keys)
+  cat > /etc/ssh/sshd_config.d/00-openclaw.conf << 'EOF'
+# OpenClaw SSH configuration
+
+# Disable root login via SSH
+PermitRootLogin no
+
+# Disable password authentication - key only
+PasswordAuthentication no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+
+# Enable public key authentication
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Use PAM for authentication
+UsePAM yes
+EOF
+  echo "[ssh-local] Cleanup complete"
+}
+
+# Check if SSH is enabled
+if [ "${SSH_ENABLE:-false}" != "true" ]; then
+  echo "[ssh-local] SSH disabled, cleaning up..."
+  cleanup
+  exit 0
+fi
+
+# Check if local SSH access is enabled
+if [ "${SSH_ALLOW_LOCAL:-true}" != "true" ]; then
+  echo "[ssh-local] Local SSH access disabled, cleaning up..."
+  cleanup
+  exit 0
+fi
+
+echo "[ssh-local] Setting up local SSH access..."
+
+# Create localaccess group if it doesn't exist
+if ! getent group "$GROUP" >/dev/null; then
+  groupadd "$GROUP"
+  echo "[ssh-local] Created group: $GROUP"
+fi
+
+# Add ubuntu and root to the group
+for user in ubuntu root; do
+  if id "$user" &>/dev/null; then
+    usermod -aG "$GROUP" "$user"
+    echo "[ssh-local] Added $user to $GROUP group"
+  fi
+done
+
+# Create .ssh directories
+mkdir -p /root/.ssh
+mkdir -p /home/ubuntu/.ssh
+
+# Generate keys for all group members and populate authorized_keys
+/usr/local/bin/ssh-rotate-local-key
+
+# Configure sshd for local access
+mkdir -p /etc/ssh/sshd_config.d
+
+# Update base config to include system-wide authorized_keys
+cat > /etc/ssh/sshd_config.d/00-openclaw.conf << 'EOF'
+# OpenClaw SSH configuration
+
+# Disable root login via SSH (overridden for localhost below)
+PermitRootLogin no
+
+# Disable password authentication - key only
+PasswordAuthentication no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+
+# Enable public key authentication
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys /etc/ssh/authorized_keys
+
+# Use PAM for authentication
+UsePAM yes
+EOF
+
+# Allow root login from localhost only
+cat > /etc/ssh/sshd_config.d/local-access.conf << 'EOF'
+# Allow root login only from localhost (SSH_ALLOW_LOCAL feature)
+Match Address 127.0.0.1,::1
+    PermitRootLogin yes
+EOF
+
+echo "[ssh-local] Configured sshd for local access"
+echo "[ssh-local] Members of '$GROUP' group can SSH to any user on localhost"
+echo "[ssh-local]   ssh root@localhost"

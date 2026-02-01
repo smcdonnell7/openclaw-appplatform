@@ -76,6 +76,31 @@ persist_env_global() {
   done
 }
 
+# Copy all vars from a source prefix to all other prefix directories
+# Usage: broadcast_prefix "PUBLIC_"
+# This makes PUBLIC_ vars available when sourcing any prefix
+broadcast_prefix() {
+  local source_prefix="$1"
+  local source_dir="$ENV_BASE/$source_prefix"
+
+  [[ -d "$source_dir" ]] || return 0
+
+  for target_dir in "$ENV_BASE"/*/; do
+    [[ -d "$target_dir" ]] || continue
+    local target_prefix
+    target_prefix=$(basename "$target_dir")
+
+    # Skip the source prefix itself
+    [[ "$target_prefix" == "$source_prefix" ]] && continue
+
+    # Copy all files from source to target
+    for file in "$source_dir"/*; do
+      [[ -f "$file" ]] || continue
+      cp "$file" "$target_dir/"
+    done
+  done
+}
+
 # Load environment variables from prefix directories
 # Usage: source_env_prefix "TS_" "RESTIC_"
 source_env_prefix() {

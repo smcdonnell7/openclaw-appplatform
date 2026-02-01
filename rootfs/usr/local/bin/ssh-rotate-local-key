@@ -1,0 +1,56 @@
+#!/bin/bash
+# Rotate local SSH keys for all members of the localaccess group
+# Keys are used for localhost SSH access between users
+# Permissions are set via permissions.yaml
+
+set -e
+
+GROUP="localaccess"
+
+# Ensure group exists
+getent group "$GROUP" >/dev/null || {
+  echo "[ssh-rotate] Group $GROUP does not exist"
+  exit 1
+}
+
+# Get group members
+MEMBERS=$(getent group "$GROUP" | cut -d: -f4 | tr ',' ' ')
+
+if [ -z "$MEMBERS" ]; then
+  echo "[ssh-rotate] No members in $GROUP group"
+  exit 0
+fi
+
+# Clear and recreate system-wide authorized_keys
+> /etc/ssh/authorized_keys
+
+for user in $MEMBERS; do
+  # Get user's home directory
+  HOME_DIR=$(getent passwd "$user" | cut -d: -f6)
+  if [ -z "$HOME_DIR" ]; then
+    echo "[ssh-rotate] Warning: Could not find home directory for $user"
+    continue
+  fi
+
+  SSH_DIR="$HOME_DIR/.ssh"
+  KEY_FILE="$SSH_DIR/id_ed25519"
+
+  # Ensure .ssh directory exists
+  mkdir -p "$SSH_DIR"
+
+  # Remove old key if it exists
+  rm -f "$KEY_FILE" "$KEY_FILE.pub"
+
+  # Generate new keypair
+  ssh-keygen -t ed25519 -N "" -f "$KEY_FILE" -C "$user@localhost-$(date +%Y%m%d)" >/dev/null
+
+  # Set ownership
+  chown -R "$user:$user" "$SSH_DIR"
+
+  # Add public key to system-wide authorized_keys
+  cat "$KEY_FILE.pub" >> /etc/ssh/authorized_keys
+
+  echo "[ssh-rotate] Generated SSH keypair for $user"
+done
+
+echo "[ssh-rotate] Updated /etc/ssh/authorized_keys with ${#MEMBERS[@]} keys"
