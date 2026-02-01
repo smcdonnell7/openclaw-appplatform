@@ -125,6 +125,29 @@ jobs:
           echo "SPACES_ENDPOINT=$SPACES_ENDPOINT" >> $GITHUB_OUTPUT
           echo "Created bucket: $BUCKET_NAME"
 
+      - name: Generate test SSH keypair
+        if: contains(matrix.config, 'ssh')
+        id: ssh-key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519_test -C "ci-test@github-actions"
+          echo "SSH_PUBLIC_KEY=$(cat ~/.ssh/id_ed25519_test.pub)" >> $GITHUB_OUTPUT
+          echo "Generated test SSH keypair for external SSH testing"
+
+      - name: Check Tailscale credentials
+        if: matrix.config == 'ssh-tailscale'
+        id: tailscale-check
+        env:
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_TOKEN }}
+        run: |
+          if [ -z "$TS_AUTHKEY" ]; then
+            echo "SKIP_TAILSCALE=true" >> $GITHUB_OUTPUT
+            echo "Skipping: TAILSCALE_AUTH_TOKEN secret not configured"
+          else
+            echo "SKIP_TAILSCALE=false" >> $GITHUB_OUTPUT
+            echo "Tailscale credentials available"
+          fi
+
       - name: Copy test configuration
         env:
           RESTIC_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
@@ -132,14 +155,87 @@ jobs:
           RESTIC_SPACES_ENDPOINT: ${{ steps.spaces-bucket.outputs.SPACES_ENDPOINT }}
           RESTIC_SPACES_BUCKET: ${{ steps.spaces-bucket.outputs.BUCKET_NAME }}
           RESTIC_PASSWORD: test-password-${{ github.run_id }}
+          SSH_PUBLIC_KEY: ${{ steps.ssh-key.outputs.SSH_PUBLIC_KEY }}
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_TOKEN }}
+          SKIP_TAILSCALE: ${{ steps.tailscale-check.outputs.SKIP_TAILSCALE }}
         run: |
           echo "Testing configuration: ${{ matrix.config }}"
           bash -c 'source tests/lib.sh && switch_config ${{ matrix.config }}'
+
+          # Add CI-generated SSH key for SSH configs (for external SSH testing)
+          if [ -n "$SSH_PUBLIC_KEY" ]; then
+            echo "SSH_AUTHORIZED_USERS=$SSH_PUBLIC_KEY" >> .env
+            echo "Added CI SSH key for external SSH testing"
+          fi
+
+          # Add Tailscale auth key for tailscale configs
+          if [ -n "$TS_AUTHKEY" ] && [ "$SKIP_TAILSCALE" != "true" ]; then
+            echo "TS_AUTHKEY=$TS_AUTHKEY" >> .env
+            echo "Added Tailscale auth key"
+          fi
+
+          echo "--- Configuration contents (secrets redacted) ---"
+          sed 's/\(KEY\|SECRET\|PASSWORD\|TOKEN\|AUTHKEY\)=.*/\1=***REDACTED***/g' .env
 
       - name: Start container
         run: |
           docker compose up -d
           sleep 10
+
+      - name: Start Tailscale test sidecar
+        if: matrix.config == 'ssh-tailscale' || matrix.config == 'ssh-tailscale-persistence'
+        env:
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_TOKEN }}
+        run: |
+          if [ -z "$TS_AUTHKEY" ]; then
+            echo "Skipping Tailscale sidecar: no auth token"
+            exit 0
+          fi
+
+          # Start Tailscale sidecar container for testing
+          docker run -d --name tailscale-test \
+            --hostname tailscale-test-ci \
+            -e TS_AUTHKEY="$TS_AUTHKEY" \
+            -e TS_STATE_DIR=/var/lib/tailscale \
+            -e TS_USERSPACE=true \
+            -e TS_EXTRA_ARGS="--accept-routes" \
+            --cap-add=NET_ADMIN \
+            tailscale/tailscale:latest
+
+          # Wait for Tailscale to connect
+          echo "Waiting for test sidecar to connect to Tailscale..."
+          for i in {1..60}; do
+            if docker exec tailscale-test tailscale status 2>/dev/null | grep -q "^100\."; then
+              echo "✓ Test sidecar connected to Tailscale"
+              docker exec tailscale-test tailscale status
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "error: Tailscale sidecar failed to connect"
+              docker logs tailscale-test
+              exit 1
+            fi
+            sleep 2
+          done
+
+          # Install SSH client in sidecar for testing
+          docker exec tailscale-test apk add --no-cache openssh-client
+
+          # Copy CI test key to sidecar
+          docker cp ~/.ssh/id_ed25519_test tailscale-test:/tmp/
+          docker exec tailscale-test chmod 600 /tmp/id_ed25519_test
+
+      - name: Dump container status
+        if: always()
+        run: docker ps -a --filter name=${{ matrix.config }}
+
+      - name: Dump container logs
+        if: always()
+        run: docker logs ${{ matrix.config }} 2>&1 || true
+
+      - name: Dump process list
+        if: always()
+        run: docker exec ${{ matrix.config }} ps aux || echo "Container not running"
 
       - name: Verify container is running
         run: |
@@ -152,6 +248,8 @@ jobs:
         env:
           DO_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
           DO_SPACES_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
+          SKIP_TAILSCALE: ${{ steps.tailscale-check.outputs.SKIP_TAILSCALE }}
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_TOKEN }}
         run: |
           echo "Running tests/${{ matrix.config }}/${{ matrix.script }}"
           ./tests/${{ matrix.config }}/${{ matrix.script }} ${{ matrix.config }}
@@ -189,6 +287,12 @@ jobs:
                 --host="$SPACES_ENDPOINT" \
                 --host-bucket="%(bucket)s.$SPACES_ENDPOINT" \
                 rb --recursive "s3://$BUCKET_NAME" || true
+
+      - name: Cleanup Tailscale sidecar
+        if: always() && (matrix.config == 'ssh-tailscale' || matrix.config == 'ssh-tailscale-persistence')
+        run: |
+          docker stop tailscale-test 2>/dev/null || true
+          docker rm tailscale-test 2>/dev/null || true
 
       - name: Cleanup
         if: always()
