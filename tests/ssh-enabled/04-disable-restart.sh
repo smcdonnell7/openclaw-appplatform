@@ -16,8 +16,8 @@ docker exec "$CONTAINER" true || { echo "error: container not responsive"; exit 
 wait_for_service "$CONTAINER" "sshd" || exit 1
 echo "✓ SSH initially running"
 
-# Disable SSH by updating the s6 environment variable
-docker exec "$CONTAINER" bash -c "echo 'false' > /run/s6/container_environment/SSH_ENABLE"
+# Disable SSH by updating the s6 environment variable (prefix directory)
+docker exec "$CONTAINER" bash -c "echo 'false' > /run/s6/container_environment/SSH_/SSH_ENABLE"
 echo "✓ Set SSH_ENABLE=false"
 
 # Gracefully restart sshd service (sends SIGTERM, waits, then restarts)
@@ -41,7 +41,7 @@ fi
 echo "✓ Port 22 not listening"
 
 # Re-enable SSH
-docker exec "$CONTAINER" bash -c "echo 'true' > /run/s6/container_environment/SSH_ENABLE"
+docker exec "$CONTAINER" bash -c "echo 'true' > /run/s6/container_environment/SSH_/SSH_ENABLE"
 echo "✓ Set SSH_ENABLE=true"
 
 # Restart sshd service
