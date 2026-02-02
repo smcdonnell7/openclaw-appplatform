@@ -137,25 +137,29 @@ if [ "$SSHD_CHECK" != "SSHD_RUNNING" ]; then
 fi
 echo "✓ sshd is running"
 
-# Test SSH to users that should work (ubuntu, root)
-for target_user in ubuntu root; do
-    echo "Testing SSH from $CURRENT_USER to $target_user@localhost..."
-    SSH_OUTPUT=$(echo "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes $target_user@localhost 'whoami && motd' 2>/dev/null || echo SSH_FAILED" | timeout 30 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>/dev/null | tr -d '\r') || SSH_OUTPUT="SSH_FAILED"
+# Test SSH to users that should work (ubuntu, root) with nested SSH
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes"
 
-    SSH_USER=$(echo "$SSH_OUTPUT" | head -1)
-    if [ "$SSH_USER" = "$target_user" ]; then
-        echo "✓ SSH to $target_user@localhost works"
-        echo "$SSH_OUTPUT" | tail -n +2 | head -20
+for target_user in ubuntu root; do
+    echo "Testing console → SSH $target_user@localhost → motd → SSH root@localhost → motd..."
+    SSH_CMD="ssh $SSH_OPTS $target_user@localhost 'motd && ssh $SSH_OPTS root@localhost motd'"
+    SSH_OUTPUT=$(echo "$SSH_CMD" | timeout 60 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>/dev/null | tr -d '\r') || SSH_OUTPUT="SSH_FAILED"
+
+    # Check for motd output (should appear twice - once per SSH hop)
+    MOTD_COUNT=$(echo "$SSH_OUTPUT" | grep -c "Welcome\|openclaw" || true)
+    if [ "$MOTD_COUNT" -ge 2 ]; then
+        echo "✓ Nested SSH from $target_user works (motd appeared $MOTD_COUNT times)"
+        echo "$SSH_OUTPUT" | head -30
     else
-        echo "error: SSH to $target_user@localhost failed (got: $SSH_USER)"
+        echo "error: Nested SSH from $target_user failed (motd count: $MOTD_COUNT)"
         echo "$SSH_OUTPUT"
         exit 1
     fi
 done
 
 # Test SSH to openclaw should fail (no local SSH access for service account)
-echo "Testing SSH to openclaw@localhost should be denied..."
-SSH_OUTPUT=$(echo "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes openclaw@localhost 'whoami' 2>&1 || echo SSH_DENIED" | timeout 30 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>/dev/null | tr -d '\r') || SSH_OUTPUT="SSH_DENIED"
+echo "Testing console → SSH openclaw@localhost should be denied..."
+SSH_OUTPUT=$(echo "ssh $SSH_OPTS openclaw@localhost motd 2>&1 || echo SSH_DENIED" | timeout 30 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>/dev/null | tr -d '\r') || SSH_OUTPUT="SSH_DENIED"
 
 if echo "$SSH_OUTPUT" | grep -q "SSH_DENIED\|Permission denied\|not allowed"; then
     echo "✓ SSH to openclaw@localhost correctly denied"
