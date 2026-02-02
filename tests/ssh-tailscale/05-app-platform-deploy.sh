@@ -21,10 +21,7 @@ fi
 
 # Verify doctl is authenticated
 echo "Checking doctl auth..."
-doctl account get || {
-    echo "error: doctl not authenticated (set DIGITALOCEAN_TOKEN or run Install doctl action)"
-    exit 1
-}
+doctl account get
 echo "✓ doctl authenticated"
 
 if [ -z "$TS_AUTHKEY" ]; then
