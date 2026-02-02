@@ -14,7 +14,7 @@ jobs:
       configs: ${{ steps.list-configs.outputs.configs }}
       scenarios: ${{ steps.list-scenarios.outputs.scenarios }}
       registry_name: ${{ steps.create-registry.outputs.registry_name }}
-      image_tag: ${{ steps.push-image.outputs.image_tag }}
+      image_tag: ${{ steps.image-tag.outputs.image_tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
