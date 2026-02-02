@@ -14,11 +14,12 @@ REGISTRY_NAME=""
 
 echo "Testing App Platform deployment..."
 
-# Check for required environment variables (doctl action sets DIGITALOCEAN_ACCESS_TOKEN)
-if [ -z "$DIGITALOCEAN_ACCESS_TOKEN" ]; then
-    echo "error: DIGITALOCEAN_ACCESS_TOKEN not set (doctl not configured)"
+# Verify doctl is authenticated (doctl action configures this)
+if ! doctl account get &>/dev/null; then
+    echo "error: doctl not authenticated (run Install doctl action first)"
     exit 1
 fi
+echo "✓ doctl authenticated"
 
 if [ -z "$TS_AUTHKEY" ]; then
     echo "error: TS_AUTHKEY not set (required for app deployment)"
