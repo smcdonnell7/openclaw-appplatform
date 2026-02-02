@@ -10,15 +10,6 @@ source "$(dirname "$0")/../lib.sh"
 SPEC_FILE="$(dirname "$0")/app-ssh-local.spec.yaml"
 APP_ID=""
 
-# Cleanup function to delete the app
-cleanup() {
-    if [ -n "$APP_ID" ]; then
-        echo "Cleaning up: deleting app $APP_ID..."
-        doctl apps delete "$APP_ID" --force 2>/dev/null || true
-    fi
-}
-trap cleanup EXIT
-
 echo "Testing App Platform deployment..."
 
 # Check for required environment variables (doctl action sets DIGITALOCEAN_ACCESS_TOKEN)
@@ -87,6 +78,11 @@ if [ -z "$APP_ID" ]; then
     exit 1
 fi
 echo "✓ Created app: $APP_ID"
+
+# Output app ID for cleanup step
+if [ -n "$GITHUB_OUTPUT" ]; then
+    echo "app_id=$APP_ID" >> "$GITHUB_OUTPUT"
+fi
 
 # Wait for app to be fully deployed (ACTIVE status)
 echo "Waiting for app deployment (this may take several minutes)..."
