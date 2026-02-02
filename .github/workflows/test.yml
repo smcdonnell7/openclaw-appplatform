@@ -54,9 +54,7 @@ jobs:
         run: |
           REGISTRY_NAME="openclaw-ci-$(echo ${{ github.run_id }} | head -c 8)"
           echo "Creating DOCR registry: $REGISTRY_NAME"
-          doctl registry create "$REGISTRY_NAME" --subscription-tier professional --region nyc3 || {
-            echo "Registry creation failed, trying to use existing..."
-          }
+          doctl registry create "$REGISTRY_NAME" --subscription-tier professional --region nyc3
           echo "registry_name=$REGISTRY_NAME" >> $GITHUB_OUTPUT
 
       - name: Log in to DOCR
@@ -351,9 +349,8 @@ jobs:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
       - name: Cleanup DOCR registry
-        if: needs.build.outputs.registry_name != ''
         env:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
         run: |
           echo "Cleaning up DOCR registry: ${{ needs.build.outputs.registry_name }}"
-          doctl registries delete "${{ needs.build.outputs.registry_name }}" --force || echo "Registry already deleted or not found (404 is OK)"
+          doctl registries delete "${{ needs.build.outputs.registry_name }}" --force
