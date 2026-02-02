@@ -130,36 +130,47 @@ sleep 60
 echo ""
 echo "Testing app via console..."
 
+# Helper function to run console command
+run_console() {
+    local cmd="$1"
+    echo "$cmd" | timeout 60 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>&1 | tr -d '\r'
+}
+
 # Debug: dump env and service status
 echo "=== Debug: env vars and services ==="
-echo "env | grep SSH && /command/s6-svstat /run/service/sshd" | timeout 30 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>/dev/null | tr -d '\r' || echo "Debug command failed"
+run_console "env | grep -E '^SSH_|^PUBLIC_' ; /command/s6-svstat /run/service/sshd ; ps aux | grep -E 'sshd|s6' | head -10"
 echo "=== end debug ==="
 
 # First, figure out who we are
 echo "Checking current user..."
-CURRENT_USER=$(echo "whoami" | timeout 30 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>/dev/null | tr -d '\r' | tail -1) || {
-    echo "error: Failed to get current user via console"
-    exit 1
-}
+CONSOLE_OUTPUT=$(run_console "whoami")
+echo "Raw console output: [$CONSOLE_OUTPUT]"
+CURRENT_USER=$(echo "$CONSOLE_OUTPUT" | grep -v "^$" | tail -1)
 echo "✓ Console user: $CURRENT_USER"
+
+if [ -z "$CURRENT_USER" ]; then
+    echo "warning: Could not determine console user, continuing anyway..."
+fi
 
 # Check if sshd is running with retry
 echo "Checking if sshd is running..."
 SSHD_RETRIES=6
 for i in $(seq 1 $SSHD_RETRIES); do
-    SSHD_CHECK=$(echo "pgrep -x sshd >/dev/null && echo SSHD_RUNNING || echo SSHD_NOT_RUNNING" | timeout 30 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>/dev/null | tr -d '\r' | tail -1) || true
+    CONSOLE_OUTPUT=$(run_console "pgrep -x sshd >/dev/null && echo SSHD_RUNNING || echo SSHD_NOT_RUNNING")
+    echo "  Console output: [$CONSOLE_OUTPUT]"
+    SSHD_CHECK=$(echo "$CONSOLE_OUTPUT" | grep -oE "SSHD_(RUNNING|NOT_RUNNING)" | tail -1)
     if [ "$SSHD_CHECK" = "SSHD_RUNNING" ]; then
         echo "✓ sshd is running"
         break
     fi
-    echo "  Attempt $i/$SSHD_RETRIES: sshd not running yet, waiting 10s..."
+    echo "  Attempt $i/$SSHD_RETRIES: sshd not running yet (got: $SSHD_CHECK), waiting 10s..."
     sleep 10
 done
 
 if [ "$SSHD_CHECK" != "SSHD_RUNNING" ]; then
     echo "error: sshd is not running after $SSHD_RETRIES attempts"
     echo "=== Debug: all processes ==="
-    echo "ps aux" | timeout 30 doctl apps console "$APP_ID" "$COMPONENT_NAME" 2>/dev/null | tr -d '\r' || echo "ps failed"
+    run_console "ps aux"
     echo "=== end debug ==="
     exit 1
 fi
