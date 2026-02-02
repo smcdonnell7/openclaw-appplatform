@@ -25,7 +25,7 @@ workers:
         value: "true"
       - key: PUBLIC_SSH_LOCALACCESS
         scope: RUN_TIME
-        value: "true"
+        value: "ubuntu,openclaw,root"
     git:
       branch: main
       repo_clone_url: https://github.com/digitalocean-labs/openclaw-appplatform.git
