@@ -1,0 +1,75 @@
+#!/command/with-contenv bash
+# One-time migration bootstrap: download data from Spaces if fresh container
+source /etc/s6-overlay/lib/env-utils.sh
+
+source_env_prefix OPENCLAW_
+source_env_prefix RESTIC_
+
+OPENCLAW_HOME="/home/openclaw/.openclaw"
+MIGRATION_MARKER="$OPENCLAW_HOME/.migration-complete"
+
+# Skip if migration already done
+if [ -f "$MIGRATION_MARKER" ]; then
+  echo "[migration] Already migrated, skipping"
+  exit 0
+fi
+
+# Skip if workspace already has data (restored by restic or previous boot)
+if [ -f "$OPENCLAW_HOME/workspace/SOUL.md" ] || [ -f "/data/.openclaw/workspace/SOUL.md" ]; then
+  echo "[migration] Data already present, marking complete"
+  touch "$MIGRATION_MARKER"
+  exit 0
+fi
+
+# Migration URL - set via env var or use default
+MIGRATION_URL="${OPENCLAW_MIGRATION_URL:-}"
+if [ -z "$MIGRATION_URL" ]; then
+  echo "[migration] No OPENCLAW_MIGRATION_URL set, skipping migration bootstrap"
+  exit 0
+fi
+
+echo "[migration] Fresh container detected - downloading migration data..."
+echo "[migration] Source: $MIGRATION_URL"
+
+# Download and extract to openclaw home
+cd /home/openclaw
+if curl -sfL "$MIGRATION_URL" | tar xzf -; then
+  echo "[migration] Extracted migration data to /home/openclaw/"
+else
+  echo "[migration] ERROR: Failed to download or extract migration data" >&2
+  exit 0  # Don't block boot, just continue without data
+fi
+
+# Fix ownership
+chown -R openclaw:openclaw "$OPENCLAW_HOME"
+
+# Ensure state dir exists and has workspace data
+mkdir -p /data/.openclaw
+if [ -d "$OPENCLAW_HOME/workspace" ] && [ ! -d "/data/.openclaw/workspace" ]; then
+  echo "[migration] Linking workspace to /data/.openclaw/workspace"
+  ln -sf "$OPENCLAW_HOME/workspace" /data/.openclaw/workspace
+fi
+
+# Memory DB
+if [ -d "$OPENCLAW_HOME/memory" ] && [ ! -d "/data/.openclaw/memory" ]; then
+  echo "[migration] Linking memory to /data/.openclaw/memory"
+  ln -sf "$OPENCLAW_HOME/memory" /data/.openclaw/memory
+fi
+
+# Meeting-Chief data
+if [ -d "/home/openclaw/.meeting-chief" ]; then
+  mkdir -p /data/.meeting-chief
+  if [ ! -d "/data/.meeting-chief/data" ]; then
+    echo "[migration] Linking meeting-chief data"
+    ln -sf /home/openclaw/.meeting-chief/data /data/.meeting-chief/data
+  fi
+  chown -R openclaw:openclaw /home/openclaw/.meeting-chief
+fi
+
+# Mark migration as complete
+touch "$MIGRATION_MARKER"
+chown openclaw:openclaw "$MIGRATION_MARKER"
+
+echo "[migration] Migration bootstrap complete"
+echo "[migration] Files restored:"
+ls -la "$OPENCLAW_HOME/" | grep -v '^\.' | head -15
