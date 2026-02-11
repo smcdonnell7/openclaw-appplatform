@@ -1,0 +1,211 @@
+{
+  "env": {
+    "vars": {
+      "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+      "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}",
+      "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+      "MEETING_CHIEF_DB": "${MEETING_CHIEF_DB}"
+    }
+  },
+  "diagnostics": {
+    "enabled": true,
+    "cacheTrace": {
+      "enabled": true,
+      "includeMessages": false,
+      "includePrompt": false,
+      "includeSystem": false
+    }
+  },
+  "logging": {
+    "level": "info",
+    "redactSensitive": "tools"
+  },
+  "browser": {
+    "enabled": true,
+    "headless": true,
+    "noSandbox": true
+  },
+  "auth": {
+    "profiles": {
+      "anthropic:default": {
+        "provider": "anthropic",
+        "mode": "api_key"
+      },
+      "openrouter:default": {
+        "provider": "openrouter",
+        "mode": "api_key"
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "anthropic-sonnet5": {
+        "baseUrl": "https://api.anthropic.com",
+        "auth": "api-key",
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "claude-sonnet-5-20260203",
+            "name": "Claude Sonnet 5 Fennec",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "cost": {
+              "input": 0.003,
+              "output": 0.015,
+              "cacheRead": 0.0003,
+              "cacheWrite": 0.00375
+            },
+            "contextWindow": 1000000,
+            "maxTokens": 16384
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "anthropic/claude-opus-4-6",
+        "fallbacks": [
+          "openrouter/openrouter/auto"
+        ]
+      },
+      "workspace": "/data/.openclaw/workspace",
+      "memorySearch": {
+        "enabled": true,
+        "sources": ["memory"],
+        "extraPaths": ["/data/.openclaw/workspace/memory/meetings"],
+        "provider": "local",
+        "fallback": "openai",
+        "query": {
+          "maxResults": 10,
+          "minScore": 0.3,
+          "hybrid": { "enabled": true, "vectorWeight": 0.7, "textWeight": 0.3 }
+        }
+      },
+      "contextPruning": { "mode": "cache-ttl", "ttl": "2h" },
+      "compaction": { "mode": "default" },
+      "thinkingDefault": "low",
+      "heartbeat": { "every": "30m" },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8,
+        "model": "openrouter/anthropic/claude-sonnet-4"
+      },
+      "sandbox": {
+        "mode": "off",
+        "workspaceAccess": "rw"
+      }
+    }
+  },
+  "tools": {
+    "media": { "audio": { "enabled": true } },
+    "agentToAgent": { "enabled": true }
+  },
+  "messages": {
+    "ackReactionScope": "direct",
+    "tts": {
+      "auto": "off",
+      "provider": "elevenlabs",
+      "elevenlabs": {
+        "apiKey": "${ELEVENLABS_API_KEY}",
+        "voiceId": "EXAVITQu4vr4xnSDxMaL",
+        "modelId": "eleven_v3",
+        "voiceSettings": { "stability": 0.5, "similarityBoost": 0.75 }
+      }
+    }
+  },
+  "commands": { "native": "auto", "nativeSkills": "auto", "restart": true },
+  "approvals": {
+    "exec": {
+      "enabled": true,
+      "mode": "targets",
+      "targets": [{ "channel": "whatsapp", "to": "+14124177553" }]
+    }
+  },
+  "session": {
+    "dmScope": "main",
+    "resetTriggers": ["/new", "/reset"],
+    "reset": { "mode": "daily", "atHour": 4, "idleMinutes": 1440 }
+  },
+  "hooks": {
+    "enabled": true,
+    "token": "${HOOKS_TOKEN}",
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "boot-md": { "enabled": true },
+        "command-logger": { "enabled": true },
+        "session-memory": { "enabled": true }
+      }
+    }
+  },
+  "channels": {
+    "whatsapp": {
+      "dmPolicy": "allowlist",
+      "allowFrom": ["+14124177553"],
+      "groupPolicy": "allowlist",
+      "mediaMaxMb": 50,
+      "debounceMs": 1500
+    }
+  },
+  "canvasHost": { "enabled": true, "liveReload": true },
+  "talk": {
+    "apiKey": "${OPENAI_REALTIME_API_KEY}",
+    "interruptOnSpeech": true
+  },
+  "plugins": {
+    "allow": ["whatsapp", "memory-core"],
+    "entries": {
+      "memory-core": { "enabled": true }
+    }
+  },
+  "memory": {
+    "backend": "builtin",
+    "citations": "auto",
+    "qmd": {
+      "includeDefaultMemory": true,
+      "paths": [
+        { "path": "/data/.openclaw/workspace/memory/meetings", "name": "meeting-summaries", "pattern": "**/*.md" },
+        { "path": "/data/.openclaw/workspace/skills", "name": "skills", "pattern": "**/SKILL.md" }
+      ],
+      "update": { "interval": "10m", "debounceMs": 15000, "onBoot": true },
+      "limits": { "maxResults": 8, "maxSnippetChars": 800, "timeoutMs": 5000 }
+    }
+  },
+  "skills": {
+    "install": { "preferBrew": false, "nodeManager": "pnpm" },
+    "entries": {
+      "asana": {
+        "enabled": true,
+        "apiKey": "${ASANA_API_KEY}"
+      },
+      "clickup-mcp": {
+        "enabled": true,
+        "env": {
+          "CLICKUP_TOKEN": "${CLICKUP_TOKEN}"
+        }
+      },
+      "google-workspace": { "enabled": true },
+      "goplaces": { "apiKey": "${GOOGLE_PLACES_API_KEY}" },
+      "local-places": { "apiKey": "${GOOGLE_PLACES_API_KEY}" },
+      "mcporter": { "enabled": true },
+      "meeting-chief": {
+        "enabled": true,
+        "apiKey": "${OPENROUTER_MC_API_KEY}",
+        "env": {
+          "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+          "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+          "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}",
+          "OTTER_EMAIL": "${OTTER_EMAIL}",
+          "OTTER_PASSWORD": "${OTTER_PASSWORD}"
+        }
+      },
+      "nano-banana-pro": { "apiKey": "${GOOGLE_GEMINI_API_KEY}" },
+      "notion": { "apiKey": "${NOTION_API_KEY}" },
+      "openai-image-gen": { "apiKey": "${OPENAI_REALTIME_API_KEY}" },
+      "openai-whisper-api": { "apiKey": "${OPENAI_REALTIME_API_KEY}" },
+      "sag": { "apiKey": "${ELEVENLABS_API_KEY}" }
+    }
+  }
+}

@@ -108,11 +108,21 @@ fi
 echo "[generate-config] Adding gateway.auth.token to config"
 jq --arg token "$OPENCLAW_GATEWAY_TOKEN" '.gateway.auth.token = $token | .gateway.auth.mode = "token"' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
 
-# Apply user overlay if it exists (survives redeployments via persistent volume)
+# Seed overlay from Docker image if not already on persistent volume
 OVERLAY_FILE="$OPENCLAW_STATE_DIR/openclaw.overlay.json"
+IMAGE_OVERLAY="/etc/openclaw/openclaw.overlay.json"
+if [ ! -f "$OVERLAY_FILE" ] && [ -f "$IMAGE_OVERLAY" ]; then
+  echo "[generate-config] Seeding overlay from image to persistent volume"
+  cp "$IMAGE_OVERLAY" "$OVERLAY_FILE"
+  chown openclaw:openclaw "$OVERLAY_FILE"
+fi
+
+# Apply user overlay if it exists (survives redeployments via persistent volume)
 if [ -f "$OVERLAY_FILE" ]; then
   echo "[generate-config] Applying user overlay from $OVERLAY_FILE"
-  if jq -s '.[0] * .[1]' "$CONFIG_FILE" "$OVERLAY_FILE" > "${CONFIG_FILE}.tmp" 2>/dev/null; then
+  # Substitute ${VAR} placeholders with actual env var values using jq
+  if jq 'walk(if type == "string" and test("\\$\\{") then gsub("\\$\\{(?<v>[A-Z_][A-Z0-9_]*)\\}"; env[.v] // "") else . end)' "$OVERLAY_FILE" \
+     | jq -s '.[0] * .[1]' "$CONFIG_FILE" - > "${CONFIG_FILE}.tmp" 2>/dev/null; then
     mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
     echo "[generate-config] Overlay applied successfully"
   else
