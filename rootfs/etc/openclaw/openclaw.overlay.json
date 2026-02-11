@@ -183,20 +183,7 @@
     }
   },
   "messages": {
-    "ackReactionScope": "direct",
-    "tts": {
-      "auto": "off",
-      "provider": "elevenlabs",
-      "elevenlabs": {
-        "apiKey": "${ELEVENLABS_API_KEY}",
-        "voiceId": "EXAVITQu4vr4xnSDxMaL",
-        "modelId": "eleven_v3",
-        "voiceSettings": {
-          "stability": 0.5,
-          "similarityBoost": 0.75
-        }
-      }
-    }
+    "ackReactionScope": "direct"
   },
   "commands": {
     "native": "auto",
@@ -354,9 +341,6 @@
       },
       "openai-whisper-api": {
         "apiKey": "${OPENAI_REALTIME_API_KEY}"
-      },
-      "sag": {
-        "apiKey": "${ELEVENLABS_API_KEY}"
       }
     }
   },
