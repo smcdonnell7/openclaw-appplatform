@@ -12,8 +12,9 @@ if [ "${TAILSCALE_ENABLE:-false}" != "true" ]; then
 fi
 
 # Persist TS_ vars with defaults
+# Generate unique hostname per instance to avoid naming conflicts with autoscaling
 persist_env_var TS_ \
-  TS_HOSTNAME="${STABLE_HOSTNAME}" \
+  TS_HOSTNAME="${STABLE_HOSTNAME}-$(hostname -s | tail -c 5)" \
   TS_SOCKET=/tmp/tailscaled.sock \
   TS_USERSPACE=true \
   TS_STATE_DIR=/data/tailscale \

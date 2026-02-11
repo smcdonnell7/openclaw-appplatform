@@ -24,7 +24,7 @@ paths:
       - "*.pid"
       - "*.sock"
 
-  - path: /data/tailscale
+  # /data/tailscale removed - ephemeral nodes regenerate identity on boot
 
   - path: /home
     exclude:
