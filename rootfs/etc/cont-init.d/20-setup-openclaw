@@ -180,6 +180,30 @@ if [ -f "$OVERLAY_FILE" ]; then
   fi
 fi
 
+# Seed paired devices from env var (survives redeployments)
+PAIRED_DEVICES_DIR="$OPENCLAW_STATE_DIR/devices"
+PAIRED_DEVICES_FILE="$PAIRED_DEVICES_DIR/paired.json"
+# Also write to home dir in case OpenClaw looks there
+HOME_DEVICES_DIR="/home/openclaw/.openclaw/devices"
+HOME_DEVICES_FILE="$HOME_DEVICES_DIR/paired.json"
+
+if [ -n "$OPENCLAW_PAIRED_DEVICES_B64" ]; then
+  echo "[generate-config] Decoding paired devices from OPENCLAW_PAIRED_DEVICES_B64"
+  mkdir -p "$PAIRED_DEVICES_DIR" "$HOME_DEVICES_DIR"
+  if echo "$OPENCLAW_PAIRED_DEVICES_B64" | base64 -d > "${PAIRED_DEVICES_FILE}.tmp" 2>/dev/null && jq . "${PAIRED_DEVICES_FILE}.tmp" >/dev/null 2>&1; then
+    mv "${PAIRED_DEVICES_FILE}.tmp" "$PAIRED_DEVICES_FILE"
+    cp "$PAIRED_DEVICES_FILE" "$HOME_DEVICES_FILE"
+    chown -R openclaw:openclaw "$PAIRED_DEVICES_DIR" "$HOME_DEVICES_DIR"
+    DEVICE_COUNT=$(jq 'length' "$PAIRED_DEVICES_FILE")
+    echo "[generate-config] Paired devices written ($DEVICE_COUNT devices) to $PAIRED_DEVICES_FILE"
+  else
+    echo "[generate-config] WARNING: OPENCLAW_PAIRED_DEVICES_B64 failed to decode or is invalid JSON"
+    rm -f "${PAIRED_DEVICES_FILE}.tmp"
+  fi
+elif [ ! -f "$PAIRED_DEVICES_FILE" ]; then
+  echo "[generate-config] No paired devices found (set OPENCLAW_PAIRED_DEVICES_B64 to seed)"
+fi
+
 # Permissions applied via /etc/digitalocean/permissions.yaml
 
 echo "[generate-config] Final config:"
