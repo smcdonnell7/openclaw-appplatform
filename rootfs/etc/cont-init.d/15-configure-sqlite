@@ -1,0 +1,44 @@
+#!/command/with-contenv bash
+# Configure SQLite databases for concurrent access with WAL mode
+# This enables multiple readers + one writer in parallel
+source /etc/s6-overlay/lib/env-utils.sh
+
+MEETING_CHIEF_DB="/data/.meeting-chief/data/meetings.db"
+MEMORY_DB="/data/.openclaw/memory/main.sqlite"
+
+configure_db() {
+  local db_path="$1"
+  local db_name=$(basename "$db_path")
+
+  if [ ! -f "$db_path" ]; then
+    echo "[sqlite] Database not found: $db_path (skipping)"
+    return 0
+  fi
+
+  echo "[sqlite] Configuring $db_name..."
+
+  # Enable WAL mode (Write-Ahead Logging)
+  # WAL allows multiple concurrent readers while one writer is active
+  wal_mode=$(sqlite3 "$db_path" "PRAGMA journal_mode=WAL;" 2>&1)
+
+  if echo "$wal_mode" | grep -qi "wal"; then
+    echo "[sqlite] ✓ WAL mode enabled on $db_name"
+  else
+    echo "[sqlite] ⚠ WAL mode may not be enabled: $wal_mode"
+  fi
+
+  # Performance tuning for multi-instance access
+  # SYNCHRONOUS=NORMAL: async fsync on commits (much faster, safe with WAL)
+  # CACHE_SIZE=10000: 10MB cache (good for Meeting-Chief's large datasets)
+  sqlite3 "$db_path" "PRAGMA synchronous=NORMAL; PRAGMA cache_size=10000;" 2>&1
+
+  echo "[sqlite] Configured: $db_name"
+}
+
+# Configure Meeting-Chief database
+configure_db "$MEETING_CHIEF_DB"
+
+# Configure OpenClaw memory database (if it exists)
+configure_db "$MEMORY_DB"
+
+echo "[sqlite] SQLite configuration complete"

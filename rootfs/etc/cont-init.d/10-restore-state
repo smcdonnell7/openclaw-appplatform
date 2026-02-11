@@ -28,6 +28,32 @@ if [ -n "$OPENCLAW_MIGRATION_URL" ] && [ ! -f "/data/.openclaw/workspace/SOUL.md
   fi
 fi
 
+# MEETING-CHIEF: Download SQLite database from Spaces
+# Only download if file doesn't exist or is empty (first boot)
+MEETING_CHIEF_DB_PATH="/data/.meeting-chief/data/meetings.db"
+MEETING_CHIEF_DB_URL="https://openclaw-backup.tor1.digitaloceanspaces.com/migration/meetings.db"
+
+if [ ! -f "$MEETING_CHIEF_DB_PATH" ] || [ ! -s "$MEETING_CHIEF_DB_PATH" ]; then
+  echo "[restore-state] Downloading Meeting-Chief database from Spaces..."
+  mkdir -p "$(dirname "$MEETING_CHIEF_DB_PATH")"
+
+  if curl -fsSL "$MEETING_CHIEF_DB_URL" -o /tmp/meetings.db.tmp; then
+    # Verify file size is reasonable (should be ~589 MB)
+    FILE_SIZE=$(stat -f%z /tmp/meetings.db.tmp 2>/dev/null || stat -c%s /tmp/meetings.db.tmp 2>/dev/null || echo "0")
+    if [ "$FILE_SIZE" -gt 100000000 ]; then
+      mv /tmp/meetings.db.tmp "$MEETING_CHIEF_DB_PATH"
+      chown openclaw:openclaw "$MEETING_CHIEF_DB_PATH"
+      DB_SIZE_MB=$(du -h "$MEETING_CHIEF_DB_PATH" | cut -f1)
+      echo "[restore-state] Meeting-Chief database restored ($DB_SIZE_MB)"
+    else
+      echo "[restore-state] ERROR: Downloaded file too small ($FILE_SIZE bytes), aborting restore"
+      rm -f /tmp/meetings.db.tmp
+    fi
+  else
+    echo "[restore-state] WARNING: Failed to download Meeting-Chief database from Spaces"
+  fi
+fi
+
 # Check if persistence is configured
 if [ -z "$RESTIC_REPOSITORY" ] || [ -z "$RESTIC_PASSWORD" ]; then
   echo "[restore-state] Persistence not configured, skipping"
