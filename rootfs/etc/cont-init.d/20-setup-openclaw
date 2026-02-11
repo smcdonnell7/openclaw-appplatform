@@ -108,6 +108,19 @@ fi
 echo "[generate-config] Adding gateway.auth.token to config"
 jq --arg token "$OPENCLAW_GATEWAY_TOKEN" '.gateway.auth.token = $token | .gateway.auth.mode = "token"' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
 
+# Apply user overlay if it exists (survives redeployments via persistent volume)
+OVERLAY_FILE="$OPENCLAW_STATE_DIR/openclaw.overlay.json"
+if [ -f "$OVERLAY_FILE" ]; then
+  echo "[generate-config] Applying user overlay from $OVERLAY_FILE"
+  if jq -s '.[0] * .[1]' "$CONFIG_FILE" "$OVERLAY_FILE" > "${CONFIG_FILE}.tmp" 2>/dev/null; then
+    mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+    echo "[generate-config] Overlay applied successfully"
+  else
+    echo "[generate-config] WARNING: Failed to apply overlay, using base config"
+    rm -f "${CONFIG_FILE}.tmp"
+  fi
+fi
+
 # Permissions applied via /etc/digitalocean/permissions.yaml
 
 echo "[generate-config] Final config:"
