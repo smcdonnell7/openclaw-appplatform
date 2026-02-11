@@ -5,12 +5,15 @@ source /etc/s6-overlay/lib/env-utils.sh
 # Load RESTIC_ vars
 source_env_prefix RESTIC_
 
+# Load OPENCLAW_ vars (for migration URL)
+source_env_prefix OPENCLAW_
+
 # MIGRATION: Check for migration data download URL
-if [ -n "$MIGRATION_DATA_URL" ] && [ ! -f "/data/.openclaw/workspace/SOUL.md" ]; then
-  echo "[restore-state] Downloading migration data from: $MIGRATION_DATA_URL"
+if [ -n "$OPENCLAW_MIGRATION_URL" ] && [ ! -f "/data/.openclaw/workspace/SOUL.md" ]; then
+  echo "[restore-state] Downloading migration data from: $OPENCLAW_MIGRATION_URL"
   mkdir -p /data
 
-  if curl -fsSL "$MIGRATION_DATA_URL" -o /tmp/migration.tar.gz; then
+  if curl -fsSL "$OPENCLAW_MIGRATION_URL" -o /tmp/migration.tar.gz; then
     echo "[restore-state] Extracting migration data..."
     tar xzf /tmp/migration.tar.gz -C /data/
 
