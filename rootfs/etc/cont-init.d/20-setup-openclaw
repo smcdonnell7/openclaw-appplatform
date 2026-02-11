@@ -5,6 +5,24 @@ source /etc/s6-overlay/lib/env-utils.sh
 set -e
 source_env_prefix OPENCLAW_
 
+# Also source API key and secret variables (not OPENCLAW_ prefixed)
+# These are needed for placeholder resolution in the config overlay
+export ELEVENLABS_API_KEY="${ELEVENLABS_API_KEY:-}"
+export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
+export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}"
+export OPENAI_API_KEY="${OPENAI_API_KEY:-}"
+export OPENAI_REALTIME_API_KEY="${OPENAI_REALTIME_API_KEY:-}"
+export ASANA_API_KEY="${ASANA_API_KEY:-}"
+export CLICKUP_TOKEN="${CLICKUP_TOKEN:-}"
+export GOOGLE_PLACES_API_KEY="${GOOGLE_PLACES_API_KEY:-}"
+export GOOGLE_GEMINI_API_KEY="${GOOGLE_GEMINI_API_KEY:-}"
+export NOTION_API_KEY="${NOTION_API_KEY:-}"
+export OPENROUTER_MC_API_KEY="${OPENROUTER_MC_API_KEY:-}"
+export OTTER_EMAIL="${OTTER_EMAIL:-}"
+export OTTER_PASSWORD="${OTTER_PASSWORD:-}"
+export HOOKS_TOKEN="${HOOKS_TOKEN:-}"
+export MEETING_CHIEF_DB="${MEETING_CHIEF_DB:-}"
+
 # OpenClaw requires any env vars consumed in config to exist or else it fails to start.
 persist_env_var OPENCLAW_ \
   GRADIENT_API_KEY=change-me \
