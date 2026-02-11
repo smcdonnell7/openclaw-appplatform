@@ -451,5 +451,102 @@
         }
       }
     }
+  },
+  "gateway": {
+    "devices": {
+      "paired": {
+        "20085f40015bb23eb445d2bd38e4a2512a44adf76c30a091929466a456c2a54f": {
+          "deviceId": "20085f40015bb23eb445d2bd38e4a2512a44adf76c30a091929466a456c2a54f",
+          "publicKey": "5vDK901Q5MWVtAKAkAMQtqyjDNFTISjADNaoS3kLrJg",
+          "platform": "darwin",
+          "clientId": "cli",
+          "clientMode": "cli",
+          "role": "operator",
+          "roles": ["operator"],
+          "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+          "tokens": {
+            "operator": {
+              "token": "5e29cd17dfae4c299f63df4e1ba0546b",
+              "role": "operator",
+              "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+              "createdAtMs": 1770074226889,
+              "lastUsedAtMs": 1770583262343
+            }
+          },
+          "createdAtMs": 1770074226889,
+          "approvedAtMs": 1770074226889
+        },
+        "4601f99ff5b6c7de40b7411958d73b59ca9cab29ef377187ca2d9cb84efc9d8c": {
+          "deviceId": "4601f99ff5b6c7de40b7411958d73b59ca9cab29ef377187ca2d9cb84efc9d8c",
+          "publicKey": "QDDU4kTZNO80XcceyOKytiGUltj6-aWAWA2pLH5ECDw",
+          "displayName": "STM MacBook Pro M3 Max",
+          "platform": "macOS 26.2.0",
+          "clientId": "openclaw-macos",
+          "clientMode": "ui",
+          "role": "operator",
+          "roles": ["operator", "node"],
+          "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+          "tokens": {
+            "operator": {
+              "token": "6ee8ee8f98324419b649407c7871e5ee",
+              "role": "operator",
+              "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+              "createdAtMs": 1770074467199,
+              "lastUsedAtMs": 1770588503180
+            },
+            "node": {
+              "token": "90e802fe0cfd487b945da1d99c986ee5",
+              "role": "node",
+              "scopes": [],
+              "createdAtMs": 1770074472791,
+              "lastUsedAtMs": 1770588503177
+            }
+          },
+          "createdAtMs": 1770074467199,
+          "approvedAtMs": 1770074472791
+        },
+        "67819d7279f1f997090dbf8760d3f8d3ecdb3373b9a0ee0d73cec6d83452fc8a": {
+          "deviceId": "67819d7279f1f997090dbf8760d3f8d3ecdb3373b9a0ee0d73cec6d83452fc8a",
+          "publicKey": "J-2NhDb_CrBdXY_ih93t1a6cDTg9t7iDHavKEQA3Bc0",
+          "platform": "MacIntel",
+          "clientId": "openclaw-control-ui",
+          "clientMode": "webchat",
+          "role": "operator",
+          "roles": ["operator"],
+          "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+          "tokens": {
+            "operator": {
+              "token": "81f4b9a820194df99ead78a3cf51c1c9",
+              "role": "operator",
+              "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+              "createdAtMs": 1770074740012,
+              "lastUsedAtMs": 1770588501938
+            }
+          },
+          "createdAtMs": 1770074740012,
+          "approvedAtMs": 1770074740012
+        },
+        "3fc8fae4917c2d68b57abe45be6d8d152257597fd1f9a316e4e55183a196ce48": {
+          "deviceId": "3fc8fae4917c2d68b57abe45be6d8d152257597fd1f9a316e4e55183a196ce48",
+          "publicKey": "0HctjY2GpsXUs67dT6M46BTT1q4HyMrZl5nKsOUsa10",
+          "platform": "darwin",
+          "clientId": "cli",
+          "clientMode": "cli",
+          "role": "operator",
+          "roles": ["operator"],
+          "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+          "tokens": {
+            "operator": {
+              "token": "5e29cd17dfae4c299f63df4e1ba0546b",
+              "role": "operator",
+              "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+              "createdAtMs": 1770852010079
+            }
+          },
+          "createdAtMs": 1770852010079,
+          "approvedAtMs": 1770852010079
+        }
+      }
+    }
   }
 }
