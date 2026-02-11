@@ -132,7 +132,13 @@ fi
 # Apply user overlay if it exists (survives redeployments via persistent volume)
 if [ -f "$OVERLAY_FILE" ]; then
   echo "[generate-config] Applying user overlay from $OVERLAY_FILE"
-  if jq -s '.[0] * .[1]' "$CONFIG_FILE" "$OVERLAY_FILE" > "${CONFIG_FILE}.tmp" 2>/dev/null; then
+  # Resolve ${VAR} placeholders with actual env var values, then deep-merge
+  RESOLVED=$(cat "$OVERLAY_FILE")
+  for var in $(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "$OVERLAY_FILE" | sort -u | sed 's/[${}]//g'); do
+    val="${!var}"
+    [ -n "$val" ] && RESOLVED=$(echo "$RESOLVED" | sed "s|\${$var}|$val|g")
+  done
+  if echo "$RESOLVED" | jq -s '.[0] * .[1]' "$CONFIG_FILE" - > "${CONFIG_FILE}.tmp" 2>/dev/null; then
     mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
     echo "[generate-config] Overlay applied successfully"
   else
