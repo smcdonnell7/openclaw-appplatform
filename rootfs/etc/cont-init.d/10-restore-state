@@ -5,6 +5,26 @@ source /etc/s6-overlay/lib/env-utils.sh
 # Load RESTIC_ vars
 source_env_prefix RESTIC_
 
+# MIGRATION: Check for migration data download URL
+if [ -n "$MIGRATION_DATA_URL" ] && [ ! -f "/data/.openclaw/workspace/SOUL.md" ]; then
+  echo "[restore-state] Downloading migration data from: $MIGRATION_DATA_URL"
+  mkdir -p /data
+
+  if curl -fsSL "$MIGRATION_DATA_URL" -o /tmp/migration.tar.gz; then
+    echo "[restore-state] Extracting migration data..."
+    tar xzf /tmp/migration.tar.gz -C /data/
+
+    # Fix ownership
+    chown -R openclaw:openclaw /data/.openclaw 2>/dev/null || true
+    chown -R openclaw:openclaw /data/.meeting-chief 2>/dev/null || true
+
+    rm -f /tmp/migration.tar.gz
+    echo "[restore-state] Migration data extraction complete"
+  else
+    echo "[restore-state] WARNING: Failed to download migration data"
+  fi
+fi
+
 # Check if persistence is configured
 if [ -z "$RESTIC_REPOSITORY" ] || [ -z "$RESTIC_PASSWORD" ]; then
   echo "[restore-state] Persistence not configured, skipping"
