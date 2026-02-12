@@ -9,4 +9,19 @@ if [ "${TAILSCALE_ENABLE:-false}" = "true" ]; then
     tailscale set --operator=openclaw
 fi
 
+# Seed paired devices from env var (write just before gateway starts to avoid race conditions)
+if [ -n "$OPENCLAW_PAIRED_DEVICES_B64" ]; then
+  _DEVICES_DIR="${OPENCLAW_STATE_DIR:-/data/.openclaw}/devices"
+  mkdir -p "$_DEVICES_DIR"
+  if printf '%s' "$OPENCLAW_PAIRED_DEVICES_B64" | base64 -d > "$_DEVICES_DIR/paired.json.tmp" 2>/dev/null && \
+     jq . "$_DEVICES_DIR/paired.json.tmp" >/dev/null 2>&1; then
+    mv "$_DEVICES_DIR/paired.json.tmp" "$_DEVICES_DIR/paired.json"
+    chown openclaw:openclaw "$_DEVICES_DIR/paired.json"
+    echo "[openclaw] Seeded $(jq 'keys | length' "$_DEVICES_DIR/paired.json") paired devices from env var"
+  else
+    echo "[openclaw] WARNING: Failed to decode OPENCLAW_PAIRED_DEVICES_B64"
+    rm -f "$_DEVICES_DIR/paired.json.tmp"
+  fi
+fi
+
 with_env_prefix --user openclaw OPENCLAW_ -- openclaw gateway --allow-unconfigured
